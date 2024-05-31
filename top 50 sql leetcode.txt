@@ -1,0 +1,240 @@
+---total of two highest marks that are atleast 160
+SELECT * 
+FROM (
+SELECT student_id,SUM (marksobtained) AS total 
+FROM (
+SELECT *,
+ROW_NUMBER() OVER (PARTITION BY student_id ORDER BY marksobtained desc ) AS rn 
+FROM Students ) y
+WHERE y.rn <=2
+Group BY student_id) x 
+WHERE x.total>=160
+
+---pyspark version of above question
+FROM pyspark.sql.window import Window
+win = Window.partitionBy(col("student_id").orderBy(co("marksobtained").desc())
+df_win =df.withColumn("rn",row_number().over(win)).filter(col("rn")<=2)
+df_group=df_win.groupBy(col("student_id")).agg(expr("sum (marksobtained) as total"))
+df_res=df_group.filter("total >=160")
+
+
+
+---Recyclable & low fat products
+SELECT product_id
+FROM products
+WHERE low_fats='Y'
+AND recyclable='Y';
+
+---- Find customer Refree
+NOTE : If we have null in col we need those in o/p as well 
+sql wont be able to compare null values with id col
+
+SELECT name
+FROM customer
+WHERE refree_id <> 2 
+OR refree_id IS NULL;
+
+SELECT name
+FROM customer
+WHERE IFNULL(refree_id,-1) <> 2;  ---IFNULL is only available in mysql
+
+NOTE: we have more than one col with nulls then we can use coalesce
+
+SELECT name
+FROM customer
+WHERE coaleasce(col_1,col_2,-1) <> 2;
+
+----Big countries
+SELECT name,population,area
+FROM world
+WHERE area>=300000
+OR population >=2500000;
+
+----Article views
+NOTE : If we have duplicate values , DISTINCT * checks all cols for uniqueness and if we use DISTINCT(col) then will check only that col for uniqueness.
+  
+SELECT DISTINCT author_id AS id
+FROM views
+WHERE author_id=viewer_id
+ORDER BY author_id ASC;
+
+---Invalid tweets
+NOTE: LENGTH function doesn't count lenght of chars but count the bytes , Use CHAR_LENGTH instead
+
+SELECT tweet_id
+FROM tweets
+WHERE CHAR_LENGTH(content) >15;
+
+---Replace employee id with unique number
+SELECT e2.unique_id,e1.name
+FROM employee e1
+LEFT JOIN employeeuni e2
+ON e1.id = e2.id ;
+
+---product sales analysis 
+SELECT p.product_name,s.year,s.price
+From sales s
+LEFT JOIN product p
+ON s.product_id = p.product_id
+
+---customer who visited but didn't make any transaction
+
+SELECT v.customer_id , COUNT(v.visit_id) AS count_no_trans
+FROM visits v
+LEFT JOIN transaction t
+ON v.visit_id = t.visit_id
+WHERE t.transaction_id Is NULL
+GROUP BY v.customer_id;
+
+
+----Rising Temparature
+SELECT w.id
+FROM weather w
+LEFT JOIN weather p
+ON w.record_date - INTERVAL 1 DAY =p.record_date
+WHERE w.temperature>p.temperature;
+
+####can use lag function as well###
+WITH PreviousWeatherData AS
+(
+    SELECT 
+        id,
+        recordDate,
+        temperature, 
+        LAG(temperature, 1) OVER (ORDER BY recordDate) AS PreviousTemperature,
+        LAG(recordDate, 1) OVER (ORDER BY recordDate) AS PreviousRecordDate
+    FROM 
+        Weather
+)
+SELECT 
+    id 
+FROM 
+    PreviousWeatherData
+WHERE 
+    temperature > PreviousTemperature
+AND 
+    recordDate = DATE_ADD(PreviousRecordDate, INTERVAL 1 DAY);
+
+---Average time to process a machine
+SELECT a1.machine_id,
+ROUND(SUM(a2.timestamp-a1.timestamp)/COUNT(*),3) AS avg_process_time
+FROM activity a1
+INNER JOIN activity a2
+ON a1.machine_id=a2.machine_id
+AND a1.process_id=a2.process_id
+ANd a1.timestamp <a2.timestamp
+GROUP BY a1.machine_id ;
+
+----Employee bonus <1000
+SELECT e.name,b.bonus
+FROM employee e
+LEFT JOIN bonus b
+ON e.emp_id=b.emp_id
+WHERE IFNULL(b.bonus,0) <1000;
+
+----students and examinations
+
+SELECT st.student_id,st.student_name,su.subject_name,COUNT(e.student_id) AS attempts
+FROM students st
+CROSS JOIN subjects su
+LEFT JOIN examination e
+ON st.student_id=e.student_id
+AND su.subject_name=e.subject_name
+GROUP BY st.student_id,st.student_name,su.subject_name
+ORDER BY st.student_id,su.subject_name
+
+----Manager with atleast five direct reports
+SELECT e2.name
+FROM employee e1
+INNER JOIN employee e2
+ON e1.manager_id=e2.id
+GROUP BY e2.id,e2.name
+HAVING COUNT(e1.id)>=5;
+
+----Confirmation rate
+
+SELECT s.user_id,ROUND(SUM(IF(c.action='confirmed',1,0))/COUNT(*),2) AS confirm_rate
+FROM signups s
+LEFT JOIN confirmations c
+ON s.user_id=c.user_id
+GROUP BY s.user_id;
+
+
+---Not boring movies
+SELECT *
+FROM cinema 
+WHERE id%2=1
+AND LOWER(description) NOT LIKE '%boring%'
+ORDER BY rating DESC;
+
+
+---avg selling price
+
+SELECT p.product_id,IFNULL(ROUND(SUM(p.price*u.units)/SUM(u.units),2),0) AS avg_price
+FROM prices p
+LEFT JOIN unitssold u
+ON p.product_id=u.product_id
+AND u.purchase_date>=p.start_date
+AND u.purchase_date<=p.end_date
+GROUP BY p.product_id
+
+---project employees
+
+SELECT p.project_id, ROUND(AVG(e.yoe),2) AS avg_exp
+FROM project p
+LEFT JOIN employee e
+ON p.employee_id=e.employee_id
+GROUP BY p.project_id;
+
+---percentage of users attended contest
+ 
+SELECT r.contest_id, ROUND(COUNT(DISTINCT r.user_id)/COUNT(DISTINCT u.user_id)*100,2) AS percentage
+FROM users u
+CROSS JOIN register r
+GROUP BY r.contest_id
+ORDER BY percentage DESC,contest_id;
+
+----queries quality and percentage
+
+SELECt query_name,ROUND(AVG(rating/position),2) AS quality , ROUND(AVG(IF(rating < 3,1,0))*100,2) AS poor_percentage
+FROM queries 
+WHERE query_name IS NOT NULL
+GROUP BY query_name;
+
+----Monthly Transaction I
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
