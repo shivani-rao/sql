@@ -1,0 +1,237 @@
+----The customers who bought all the products (5 and 6) are customers
+select * 
+from customer 
+group by customer_id 
+having count(distict product_key) = (select count(*) from product)
+
+
+---TOP 2 Highest salaries from each department 
+
+select * from (
+select * 
+, row_number() over (partition by dep_id order by salary desc) as rn
+,dense_rank() over (partition by dep_id order by salary desc) as drn
+from employee) a
+where drn <=2;
+
+NOTE : (If asked overall top 2 salary you can use : select top 2 * from employee order by salary desc; or select * from employee order by salary desc limit 2;)
+
+---Top 5 products by sales within each category
+
+With cte as (
+select category,product_id, sum(sales) as sales
+from orders
+group by category,product_id
+)
+select * from (
+Select *
+, row_number() over (partition by category order by sales desc ) as rn
+from cte) a
+where rn <=5;
+
+----yoy growth/product with current month sales more than prev month sales
+***lead/lag functions***
+(partition by product_id order by month ) (partition by category order by year_order)
+
+With cte as(
+select category,year(order_date) as year_order , sum(sales) as sales
+from orders
+group by category,year(order_date)
+)
+,cte2 as(
+select *
+,lag(sales,1,sales) over (partition by category order by year_order) as prev_sales
+from cte
+)
+select * 
+,(sales-prev_sales)*100/pre_sales as yoy
+from cte2
+
+---Running/cumulative sales /rolling n months sales
+with cte as(
+select year(order_date) as year_order,sum(sales) as sales
+from orders
+group by year(order_date)
+)
+select *
+,sum(sales) over (order by year_order) as cumulative_sales
+from cte
+******************
+with cte as(
+select category,year(order_date) as year_order,sum(sales) as sales
+from orders
+group by category,year(order_date)
+)
+select *
+,sum(sales) over (partition by category order by year_order) as cumulative_sales
+from cte
+
+***rolling 3 months sales***
+with cte as(
+select year(order_date) as year_order , month(order_date) as month_order , sum(sales) as sales
+from orders
+group by year(order_date),month(order_date)
+) 
+select *
+, sum(sales) over(partition by year_order order by month_order rows between 2 preceding and current row) as cumulative_sales
+from cte
+
+
+----pivoting -> Converting rows into columns--year wise each category sales
+select year(order_date) as year_order
+,sum(case when category='Furniture' then sales else 0 end ) as fun_sales
+,sum(case when category='Office supplies' then sales else 0 end ) as offc_sales
+,sum(case when category='technology' then sales else 0 end ) as tech_sales
+from orders
+group by year(order_date)
+
+----Result of multiple joins
+
+
+
+
+
+
+
+
+----Given a list of matches in a group stage of the soccer World Cup, compute the number of points each team currently has.
+  teams:                               
+
+   team_id | team_name
+  ---------+---------------
+   10      | Give
+   20      | Never
+   30      | You
+   40      | Up
+   50      | Gonna  
+ matches:
+
+   match_id | host_team | guest_team | host_goals | guest_goals
+  ----------+-----------+------------+------------+-------------
+   1        | 30        | 20         | 1          | 0
+   2        | 10        | 20         | 1          | 2
+   3        | 20        | 50         | 2          | 2
+   4        | 10        | 30         | 1          | 0
+   5        | 30        | 50         | 0          | 1
+
+your query should return:
+
+   team_id | team_name | num_points
+  ---------+-----------+------------
+   20      | Never     | 4
+   50      | Gonna     | 4
+   10      | Give      | 3
+   30      | You       | 3
+   40      | Up        | 0                  
+
+SELECT 
+    t.team_name,
+    SUM(
+        CASE 
+            WHEN m.home_team_goals > m.away_team_goals THEN 3  -- Home team wins
+            WHEN m.home_team_goals = m.away_team_goals THEN 1  -- Draw
+            ELSE 0                                             -- Away team wins
+        END
+    ) AS points
+FROM 
+    Matches m
+JOIN 
+    Teams t ON m.home_team_id = t.team_id
+GROUP BY 
+    t.team_name
+
+UNION
+
+SELECT 
+    t.team_name,
+    SUM(
+        CASE 
+            WHEN m.away_team_goals > m.home_team_goals THEN 3  -- Away team wins
+            WHEN m.home_team_goals = m.away_team_goals THEN 1  -- Draw
+            ELSE 0                                             -- Home team wins
+        END
+    ) AS points
+FROM 
+    Matches m
+JOIN 
+    Teams t ON m.away_team_id = t.team_id
+GROUP BY 
+    t.team_name;
+
+---Compute the difference between the latest and the second latest value for each event type.
+
+WITH eventsdata AS (
+SELECT *
+, ROW NUMBER() OVER(PARTITION BY event_type ORDER BY time DESC) AS rank
+FROM table_events
+)
+SELECT event_type
+,MAX(value)-MIN(value) AS diff
+FROM eventsdata
+WHERE rank <= 2
+GROUP BY event_type
+HAVING COUNT(*)>1
+ORDER BY event_type;
+
+---
+-->> Problem Statement:
+Write a query to fetch the record of brand whose amount is increasing every year.
+
+
+-->> Dataset:
+drop table brands;
+create table brands
+(
+    Year    int,
+    Brand   varchar(20),
+    Amount  int
+);
+insert into brands values (2018, 'Apple', 45000);
+insert into brands values (2019, 'Apple', 35000);
+insert into brands values (2020, 'Apple', 75000);
+insert into brands values (2018, 'Samsung',	15000);
+insert into brands values (2019, 'Samsung',	20000);
+insert into brands values (2020, 'Samsung',	25000);
+insert into brands values (2018, 'Nokia', 21000);
+insert into brands values (2019, 'Nokia', 17000);
+insert into brands values (2020, 'Nokia', 14000);
+
+
+-->> Solution:
+
+with cte as
+    (select *
+    , (case when amount < lead(amount, 1, amount+1)
+                                over(partition by brand order by year)
+                then 1
+           else 0
+      end) as flag
+    from brands)
+select *
+from brands
+where brand not in (select brand from cte where flag = 0)
+
+
+----
+with cte as ( select *, sum(case when status=’Success’ and prev_status=’Failure’ then 1 else 0 end)over( order by date) as grp_key from( select *,lag(status,1,status)over(order by date asc) as prev_status from rate)A)
+select status,min(date) as min_date, max(date) as max_date from cte group by grp_key,status;
+
+
+-----
+with cte as(
+select *, 
+ROW_NUMBER() over(partition by id order by fly) as r
+ from flight
+ )
+ select distinct  id, 
+first_value(origin) over(partition by id order by r ) as start,
+LAST_VALUE(dest) over(partition by id order by r 
+range between unbounded preceding and unbounded following) as endp
+from cte
+
+-----icc tournament
+
+
+
+
+
